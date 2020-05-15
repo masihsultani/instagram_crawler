@@ -1,6 +1,8 @@
+import os
 import requests
 import csv
 import pandas as pd
+
 
 POSTS_ENDPOINT = "https://www.instagram.com/graphql/query/?query_hash=472f257a40c653c64c666ce877d59d2b"
 COMMENTS_ENDPOINT = "https://www.instagram.com/graphql/query/?query_hash=33ba35852cb50da46f5b5e889df7d159"
@@ -96,7 +98,7 @@ def get_user_id(username):
     :param username: str
     :return: str
     """
-    r = requests.get(f"instagram.com/{username}/?__a=1")
+    r = requests.get(f"https://www.instagram.com/{username}/?__a=1")
     user_id = r.json()['graphql']['user']['id']
     return user_id
 
@@ -107,8 +109,8 @@ def is_private(username):
     :param username:
     :return: bool
     """
-    r = requests.get(f"instagram.com/{username}/?__a=1")
-    private_status = r.json()['graphql']['user']['isprivate']
+    r = requests.get(f"https://www.instagram.com/{username}/?__a=1")
+    private_status = r.json()['graphql']['user']['is_private']
     return private_status
 
 
@@ -119,6 +121,8 @@ def get_all_posts(username):
     Unique user id for instagram account
     location for csv file to write posts to
     """
+    if not os.path.exists('posts'):
+        os.mkdir('posts')
     out_file = f"posts/{username}_posts.csv"
     user_id = get_user_id(username)
     if is_private(username):
@@ -134,6 +138,8 @@ def get_all_comments(short_code):
     :param short_code: str
     :return:
     """
+    if not os.path.exists('comments'):
+        os.mkdir('comments')
     out_file = f"comments/{short_code}.csv"
     get_all(short_code, COMMENTS_HEADER, make_comments_requests, get_comment_meta_data, out_file)
 
@@ -159,8 +165,11 @@ def get_posts_by_count(user_id, count, end_cursor=None):
             next_page = page_info["has_next_page"]
             end_cursor = page_info["end_cursor"]
             for post in posts:
-                data = get_post_meta_data(post)
-                posts_list.append(data)
+                try:
+                    data = get_post_meta_data(post)
+                    posts_list.append(data)
+                except IndexError:
+                    continue
             count -= requestAmount
             if (not next_page) or (count == 0):
                 break
@@ -188,9 +197,13 @@ def get_all(unique_id, header, make_requests, get_meta_data, out_file, ):
                 page_info, data_list = results
                 next_page = page_info["has_next_page"]
                 end_cursor = page_info["end_cursor"]
+
                 for data in data_list:
-                    data = get_meta_data(data)
-                    csv_writer.writerow(data)
+                    try:
+                        data = get_meta_data(data)
+                        csv_writer.writerow(data)
+                    except IndexError:
+                        continue
                 if not next_page:
                     break
         file_out.close()
